@@ -1,17 +1,14 @@
-(ns crud.utils
-  (:require [clojure.string :as str]
-            [camel-snake-kebab.core :as camel]
-            [clojure.java.jdbc :as jdbc]
-            [honeysql.core :as sql]
-            [clojure.set :as set]
-            [inflections.core :as inflex])
-  (:import org.postgresql.jdbc.PgDatabaseMetaData))
+(ns bf.crud.utils
+  (:require
+   [clojure.string :as str]
+   [camel-snake-kebab.core :as camel]
+   [clojure.java.jdbc :as jdbc]
+   [honeysql.core :as sql]
+   [clojure.set :as set]
+   ))
 
 (defn table-name [named]
   (camel/->snake_case_keyword named))
-
-(defn unplural [str]
-  (inflex/singular str))
 
 (defn to-keyword
   ([kw]
@@ -24,10 +21,10 @@
        :else (keyword ns')))))
 
 (defn namespacize [ns coll]
-  (let [singular (-> ns name unplural keyword)]
+  (let [singular (-> ns name keyword)]
     (map #(into {} (map (fn [[k v]]
                           [(to-keyword singular k) v])
-                       %))
+                        %))
          (if (map? coll)
            [coll]
            coll))))
@@ -95,7 +92,9 @@
   "Return a db-spec on which we can extract metadata, be it a simple db map or a
   transaction map."
   [db-or-t]
-  (select-keys db-or-t #{:datasource}))
+  (if (:datasource db-or-t)
+    (select-keys db-or-t #{:datasource})
+    db-or-t))
 
 (defn get-columns
   "Return a list of column names from the given table.
@@ -103,12 +102,12 @@
   become out of sync with the db. Use it wisely."
   [db table]
   (map :column_name
-       (jdbc/with-db-metadata [^PgDatabaseMetaData md (pure-db db)]
+       (jdbc/with-db-metadata [md (pure-db db)]
          (jdbc/metadata-result (.getColumns md "" "" (name table) "%")))))
 
 (defn get-primary-keys [db table]
   (map :column_name
-       (jdbc/with-db-metadata [^PgDatabaseMetaData md (pure-db db)]
+       (jdbc/with-db-metadata [md (pure-db db)]
          (jdbc/metadata-result (.getPrimaryKeys md nil nil (name table))))))
 
 (defn stringify-keys
@@ -142,19 +141,16 @@
   value :users and a coll of [{:user/id 1, :user/age 42, :project/id 2}], will
   produce ({'id' 1, 'age' 42})."
   [db table coll]
-  (as-> (name table) <>
-    (unplural <>)
-    (map (partial select-ns <>) coll)
-    (restrict-coll-to-table db table <>)))
+  (restrict-coll-to-table db table coll))
 
 (defn coll->values
   "Transform a map or a seq of maps to a seq of rows that can fit the given table
   in an insert statement."
   [db table coll]
   (maps->table-rows db table
-       (cond
-         (map? coll) [coll]
-         :else       coll)))
+                    (cond
+                      (map? coll) [coll]
+                      :else       coll)))
 
 (defn keywordize [amap]
   (into {} (map (fn [[k v]] [(keyword k) v]) amap)))
@@ -162,8 +158,9 @@
 (defn include-keys?
   "State if all the keys in a set are present in the keyset of a map"
   [aset amap]
-  (set/subset? (set aset)
-               (set (keys amap))))
+  (and (seq aset)
+       (set/subset? (set aset)
+                    (set (keys amap)))))
 
 (defn generate-update
   "Generate a hugsql map for an update statement by primary key. Return nil if the
@@ -173,22 +170,17 @@
   (when (map? map)
     (let [prims (get-primary-keys db table)
           row   (first (maps->table-rows db table [map]))]
-      (when (include-keys? prims row)
-        (->> {:update    table
-              :set       (keywordize row)
-              :where     (generate-where (select-keys row prims))
-              :returning [:*]})))))
-
-(defn generate-insert
-  "Generate a hugsql map for an insert statement. Do not remove primary keys and thus will fail if you try to insert already existing primary keys values."
-  [db table map-or-maps]
-  (->> {:insert-into table
-        :values      (->> (if (map? map-or-maps)
-                            [map-or-maps]
-                            map-or-maps)
-                          (maps->table-rows db table)
-                          (map keywordize))
-        :returning   [:*]}))
+      (cond
+        (not (seq prims))         (throw (ex-info "Unable to generate an update clause on a table missing a primary key"
+                                                  {:table              table
+                                                   :found-primary-keys prims
+                                                   :data               map}))
+        (include-keys? prims row) (->> {:update table
+                                        :set    (keywordize row)
+                                        :where  (generate-where (select-keys row prims))
+                                        ;; :returning [:*]
+                                        })
+        :else                     nil))))
 
 ;; (generate-update bf.data.db.core/*db* :users {:user/id 1, :user/fuck 2})
 #_(generate-update bf.data.db.core/*db* :has_role {:has_role/user_id    nil,
