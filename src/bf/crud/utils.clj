@@ -10,28 +10,6 @@
 (defn table-name [named]
   (camel/->snake_case_keyword named))
 
-(defn to-keyword
-  ([kw]
-   (to-keyword nil kw))
-  ([ns kw]
-   (let [[ns' nme] (str/split (name kw) #"\$")]
-     (cond
-       nme   (keyword ns' nme)
-       ns    (keyword (name ns) ns')
-       :else (keyword ns')))))
-
-(defn namespacize [ns coll]
-  (let [singular (-> ns name keyword)]
-    (map #(into {} (map (fn [[k v]]
-                          [(to-keyword singular k) v])
-                        %))
-         (if (map? coll)
-           [coll]
-           coll))))
-
-(defn hyphenify [str]
-  (camel/->kebab-case str))
-
 (defn condition? [vec]
   (and (vector? vec)
        (keyword? (first vec))
@@ -53,40 +31,6 @@
     (if (> (count conds) 1)
       (into [:and] conds)
       (first conds))))
-
-;; WIP : check all static preds for a dangerous truthy one
-;; (def operator->fn {:=    =
-;;                    :>    >
-;;                    :<    <
-;;                    :not= not=})
-
-;; (defn eval-pred [[op left right]]
-;;   (when-let [f (operator->fn op)]
-;;     (apply (operator op) [left right])))
-
-;; (defn eval-all-preds [preds]
-;;   (loop [acc            []
-;;          [pred & preds] preds]
-;;     (cond
-;;       (nil? pred)        acc
-;;       (#{:and :or} pred) ……
-;;       (vector? pred) ……)))
-
-;; TODO: improve security by checking for alaways true predicates.
-(defn secure-where?
-  "False when the query has no WHERE or when 'WHERE TRUE'. In this case the query
-  could update or delete the whole table and may makes you shout a
-  'Oh… oh shit!' when you finaly understand where the problem comes from."
-  [amap]
-  (boolean
-   (when-let [where (:where amap)]
-     (and (not (true? where))))))
-
-(defn where-error! [query]
-  (throw (ex-info "Query aborted for security reasons. The given query has no
-  `:where` condition or one of the conditions always evaluate to `true`, this
-  could make a mess in the target table." {:where-condition (:where query)
-                                           :query           query})))
 
 (defn pure-db
   "Return a db-spec on which we can extract metadata, be it a simple db map or a
@@ -123,12 +67,6 @@
   (select-keys (stringify-keys amap)
                columns))
 
-(defn select-ns
-  "Filter a map, keeping only keys namespaced by `ns-name`"
-  [ns-name amap]
-  (into {} (filter (fn [[k _]] (= (name ns-name) (namespace k)))
-                   amap)))
-
 (defn restrict-coll-to-table [db table coll]
   (let [columns (get-columns db table)]
     (map (partial restrict-map-to-columns columns) coll)))
@@ -142,15 +80,6 @@
   produce ({'id' 1, 'age' 42})."
   [db table coll]
   (restrict-coll-to-table db table coll))
-
-(defn coll->values
-  "Transform a map or a seq of maps to a seq of rows that can fit the given table
-  in an insert statement."
-  [db table coll]
-  (maps->table-rows db table
-                    (cond
-                      (map? coll) [coll]
-                      :else       coll)))
 
 (defn keywordize [amap]
   (into {} (map (fn [[k v]] [(keyword k) v]) amap)))
@@ -181,11 +110,6 @@
                                         ;; :returning [:*]
                                         })
         :else                     nil))))
-
-;; (generate-update bf.data.db.core/*db* :users {:user/id 1, :user/fuck 2})
-#_(generate-update bf.data.db.core/*db* :has_role {:has_role/user_id    nil,
-                                                   :has_role/role_id    2
-                                                   :has_role/created_at "now"})
 
 (defn pullq->select [pullq]
   (if (some #{'*} pullq)

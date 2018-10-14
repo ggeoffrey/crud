@@ -34,31 +34,17 @@
 ;; REFLEXIVITY ;;
 ;;;;;;;;;;;;;;;;;
 
-(defn get-constructor*
-  "For a record instance, return the auto-generated map->Record factory function."
-  [this]
-  (let [segments (-> (class this)
-                     (str)
-                     (str/split #"\s")
-                     (last)
-                     (str/split #"\."))]
-    (-> (str/join "." (butlast segments))
-        (str "/map->")
-        (str (last segments))
-        (symbol)
-        (resolve))))
-
-;; TODO activate once stabilized
-(def get-constructor (memoize get-constructor*))
+(defn invoke-record-constructor
+  "For a record instance, invoke the auto-generated map->Record factory function."
+  [this amap]
+  (clojure.lang.Reflector/invokeStaticMethod (.getName (class this)) "create" (object-array [amap])))
 
 (defn empty-record
   "Same a c.c/empty, but work on records. An empty record is a record with all
   fields initialized to `nil`"
   [this]
-  ((get-constructor* this) {}))
+  (invoke-record-constructor this {}))
 
-
-;; (empty-record (crud.test.entity/map->TestPass {:id 1}))
 
 ;;;;;;;;;;;;;;;;;;
 ;; DEFAULT IMPL ;;
@@ -72,4 +58,4 @@
 
 (extend-protocol Storable
   Object
-  (store [this] (-> this class str (str/split #"\.") last camel/->snake_case_string)))
+  (store [this] (-> this class str (str/split #"\.") last camel/->snake_case_keyword)))

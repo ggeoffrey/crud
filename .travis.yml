@@ -1,5 +1,12 @@
 language: clojure
 
+services:
+  - postgresql
+
+before_script:
+  - psql -c 'create database bf;' -U postgres
+  # TODO add user bf:bf
+
 after_success:
 - CLOVERAGE_VERSION=1.0.13 lein cloverage --codecov
 - bash <(curl -s https://codecov.io/bash)
