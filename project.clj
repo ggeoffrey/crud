@@ -4,8 +4,8 @@
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
 
-  :plugins [[cider/cider-nrepl "0.18.0-SNAPSHOT"]
-            [refactor-nrepl "2.4.0-SNAPSHOT"]
+  :plugins [[cider/cider-nrepl "0.18.0"]
+            [refactor-nrepl "2.4.0"]
             [jonase/eastwood "0.3.1"]
             [lein-kibit "0.1.6"]
             [lein-cloverage "1.0.13"]]
