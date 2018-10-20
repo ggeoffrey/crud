@@ -43,8 +43,8 @@
     (let [type (.getType pgobj)
           value (.getValue pgobj)]
       (case type
-        "json" (json/parse-string value true)
-        "jsonb" (json/parse-string value true)
+        "json" (json/parse-string-strict value true)
+        "jsonb" (json/parse-string-strict value true)
         "citext" (str value)
         value)))
   String
@@ -55,13 +55,14 @@
 
 (extend-type java.util.Date
   jdbc/ISQLParameter
-  (set-parameter [v ^PreparedStatement stmt ^long idx]
+  (set-parameter [v ^PreparedStatement stmt idx]
     (.setTimestamp stmt idx (Timestamp. (.getTime v)))))
 
-(defn pgjson [value]
-  (doto (PGobject.)
-    (.setType "jsonb")
-    (.setValue (json/generate-string value))))
+(defn json [value]
+  (when value
+    (doto (PGobject.)
+      (.setType "jsonb")
+      (.setValue (json/generate-string value)))))
 
 (extend-type IPersistentVector
   jdbc/ISQLParameter
@@ -71,13 +72,13 @@
           type-name (.getParameterTypeName meta idx)]
       (if-let [elem-type (when (= (first type-name) \_) (str/join (rest type-name)))]
         (.setObject stmt idx (.createArrayOf conn elem-type (to-array v)))
-        (.setObject stmt idx (pgjson v))))))
+        (.setObject stmt idx (json v))))))
 
 (extend-protocol jdbc/ISQLValue
   IPersistentMap
-  (sql-value [value] (pgjson value))
+  (sql-value [value] (json value))
   IPersistentVector
-  (sql-value [value] (pgjson value))
+  (sql-value [value] (json value))
   clojure.lang.Keyword
   (sql-value [value] (str value)))
 

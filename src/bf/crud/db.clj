@@ -43,9 +43,14 @@
             (first)
             (val))))
 
+(defn remove-nils [amap]
+  (->> amap
+       (filter val)
+       (into {})))
+
 (defn- insert* [db table entity opts]
   (let [opts (merge {:row-fn row-fn} opts)]
-    (jdbc/insert-multi! db table (utils/maps->table-rows db table [entity]) opts)))
+    (jdbc/insert-multi! db table (map remove-nils (utils/maps->table-rows db table [entity])) opts)))
 
 (defn- update* [db table entity]
   (let [nb-affected (some->> (utils/generate-update db table entity)
@@ -144,7 +149,9 @@
     ([this db]
      (crud/fetch! this db nil))
     ([this db where-clause]
-     (first (fetch! db this where-clause))))
+     (crud/fetch! this db where-clause nil))
+    ([this db where-clause opts]
+     (first (fetch! db this where-clause :opts opts))))
 
   crud/Savable
   (crud/save! [this db]

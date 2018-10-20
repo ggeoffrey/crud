@@ -1,11 +1,19 @@
 (ns bf.crud.utils
-  (:require
-   [clojure.string :as str]
-   [camel-snake-kebab.core :as camel]
-   [clojure.java.jdbc :as jdbc]
-   [honeysql.core :as sql]
-   [clojure.set :as set]
-   ))
+  (:require [bf.crud.postgres :as pg]
+            [camel-snake-kebab.core :as camel]
+            [clojure.java.jdbc :as jdbc]
+            [clojure.set :as set]))
+
+(defn sql-values [row]
+  (into {} (map (fn [[k v]]
+                  [k (cond
+                       (keyword? v) (str v)
+                       (string? v)  v
+                       (map? v)     (pg/json v)
+                       (seq? v)     (pg/json (into [] v))
+                       (set? v)     (pg/json (into [] v))
+                       :else        v)])
+                row)))
 
 (defn table-name [named]
   (camel/->snake_case_keyword named))
@@ -67,9 +75,8 @@
   (select-keys (stringify-keys amap)
                columns))
 
-(defn restrict-coll-to-table [db table coll]
-  (let [columns (get-columns db table)]
-    (map (partial restrict-map-to-columns columns) coll)))
+(defn table-restrictor [db table]
+  (map (partial restrict-map-to-columns (get-columns db table))))
 
 (defn maps->table-rows
   "Coerce a coll of map to a coll of rows. A map is an open set of key/values
@@ -79,7 +86,9 @@
   value :users and a coll of [{:user/id 1, :user/age 42, :project/id 2}], will
   produce ({'id' 1, 'age' 42})."
   [db table coll]
-  (restrict-coll-to-table db table coll))
+  (sequence (comp (table-restrictor db table)
+                  (map sql-values))
+            coll))
 
 (defn keywordize [amap]
   (into {} (map (fn [[k v]] [(keyword k) v]) amap)))

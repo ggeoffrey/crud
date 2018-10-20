@@ -151,7 +151,11 @@
                                      ["SELECT * FROM test WHERE name IN (?, ?, ?);"
                                       (first names)
                                       (second names)
-                                      (last names)])))))))
+                                      (last names)]))))
+
+      (t/testing "we can use a datomic pull expression to restrict selected columns"
+        (t/is (= (assoc (first entities) :name nil)
+                 (crud/fetch! (first entities) *db* nil {:pull '[:id]})))))))
 
 (comment
   (deleting)

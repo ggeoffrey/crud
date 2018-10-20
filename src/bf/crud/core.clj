@@ -13,7 +13,11 @@
   (store [this] "Typically return the table name where this entity should be stored."))
 
 (defprotocol Fetchable
-  (fetch! [this db] [this db where-clause]))
+  (fetch!
+    [this db]
+    [this db where-clause]
+    [this db where-clause opts]
+    ))
 
 (defprotocol Savable
   (save! [this db] [this db opts] "Save an entity by its primary key."))
