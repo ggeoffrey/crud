@@ -68,6 +68,12 @@
         updated
         (insert* db table entity opts)))))
 
+(defn update! [db entity query-clause & {:keys [opts]}]
+  (as-> (merge {:update (keyword (crud/store entity))} query-clause) $
+    (sql/format $)
+    (doto $ prn)
+    (jdbc/execute! db $ opts)))
+
 (defn- delete*
   "Perform a delete, return how many rows (int) where deleted. Even if deleting
   data is possible (and sometime mandatory) it is recommended to 'retract' your
@@ -75,7 +81,7 @@
   anything if you can, storage is cheap nowadays and it will make you system
   more reliable and change-friendly."
   [db table query & {:keys [opts]}]
-  (as-> (merge {:delete-from (utils/table-name table)} query)$
+  (as-> (merge {:delete-from (utils/table-name table)} query) $
     (sql/format $)
     (jdbc/execute! db $ opts)
     (first $)))
@@ -109,12 +115,31 @@
 (defn query! [db entity query-vec & {:keys [opts]}]
   (map (partial renew entity) (query-raw db query-vec :opts opts)))
 
+(defn generate-where-from-entity
+  "Generate a where clause from an entity, ignore nil values for primary keys."
+  [entity]
+  (let [pk (crud/primary-key entity)]
+    (if (coll? pk)
+      (->> (select-keys entity pk) ;; we keep all the pks entries in the map/record
+           (filter second) ;; we drop the ones the null ones …
+           (into {}) ;; we rebuild the entity map
+           (utils/generate-where))
+      (utils/generate-where (select-keys entity #{pk})))))
+
+(defn generate-strict-where-from-entity
+  "Generate a where clause from entity, preserving nils value for primary-keys."
+  [entity]
+  (let [pk (crud/primary-key entity)]
+    (if (coll? pk)
+      (utils/generate-where (select-keys entity pk))
+      (utils/generate-where (select-keys entity #{pk})))))
+
 (defn fetch! [db entity where-clause & {:keys [opts]}]
   (map (partial renew entity)
        (fetch* db
                (crud/store entity)
                (or where-clause
-                   {:where [:= (crud/primary-key entity) (crud/identity entity)]})
+                   {:where (generate-where-from-entity entity)})
                :opts opts)))
 
 (defn save!
@@ -126,8 +151,11 @@
            (first)
            (renew entity)))
 
-(defn delete! [db entity]
-  (delete* db (crud/store entity) {:where [:= (crud/primary-key entity) (crud/identity entity)]}))
+(defn delete!
+  ([db entity]
+   (delete! db entity {:where (generate-strict-where-from-entity entity)}))
+  ([db entity where-clause]
+   (delete* db (crud/store entity) where-clause)))
 
 (defn insert-multi!
   [db entities & {:keys [opts]}]
@@ -147,11 +175,11 @@
   crud/Fetchable
   (crud/fetch!
     ([this db]
-     (crud/fetch! this db nil))
+     (first (crud/fetch! this db nil)))
     ([this db where-clause]
      (crud/fetch! this db where-clause nil))
     ([this db where-clause opts]
-     (first (fetch! db this where-clause :opts opts))))
+     (fetch! db this where-clause :opts opts)))
 
   crud/Savable
   (crud/save! [this db]
