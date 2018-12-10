@@ -67,7 +67,7 @@
   later occurence of a key name will take precedence.
   Eg: {:foo/a 1, :bar/a 2} -> {\"a\" 2}"
   [amap]
-  (into {} (map (fn [[k v]] [(name k) v]) amap)))
+  (into {} (map (fn [[k v]] [(camel/->snake_case_string k) v]) amap)))
 
 (defn restrict-map-to-columns
   "Keep only keys in the map that appears in the table in database"
