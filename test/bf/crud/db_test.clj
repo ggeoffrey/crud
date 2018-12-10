@@ -88,7 +88,7 @@
       (t/testing "by it's entity primary key"
         (t/is (= e (crud/fetch! e *db*))))
       (t/testing "by arbitrary :where criteria"
-        (t/is (= e (crud/fetch! e *db* {:where [:= :name "fetching"]})))))))
+        (t/is (= e (first (crud/fetch! e *db* {:where [:= :name "fetching"]}))))))))
 
 (t/deftest updating
   (t/testing "An entity"
@@ -155,7 +155,7 @@
 
       (t/testing "we can use a datomic pull expression to restrict selected columns"
         (t/is (= (assoc (first entities) :name nil)
-                 (crud/fetch! (first entities) *db* nil {:pull '[:id]})))))))
+                 (first (crud/fetch! (first entities) *db* nil {:pull '[:id]}))))))))
 
 (comment
   (deleting)
