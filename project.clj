@@ -4,6 +4,8 @@
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
 
+  :source-paths ["src/clj" "src/cljc"]
+
   :plugins [[cider/cider-nrepl "0.18.0"]
             [refactor-nrepl "2.4.0"]
             [jonase/eastwood "0.3.1"]
@@ -17,6 +19,7 @@
                  [conman "0.8.3"]
                  [honeysql "0.9.4"]
                  [camel-snake-kebab "0.4.0"]
+                 [inflections "0.13.0"]
                  [cheshire "5.8.1"]
                  [nilenso/honeysql-postgres "0.2.4"]
                  [org.clojure/tools.logging "0.4.1"]

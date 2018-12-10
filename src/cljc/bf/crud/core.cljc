@@ -3,11 +3,33 @@
   (:require
    [camel-snake-kebab.core :as camel]
    [clojure.string :as str]
-   ))
+   [inflections.core :as inflex]
+   )
+  #?(:clj (:import (java.util UUID))))
 
 (defprotocol Identified
   (primary-key [this] "Return the primary key")
   (identity [this] "Return the primary key's value"))
+
+(defprotocol NonPredictableId)
+
+(defmulti generate-id type)
+
+(defmethod generate-id bf.crud.core.NonPredictableId [_]
+  #?(:clj (UUID/randomUUID)
+     :cljs (random-uuid)))
+
+(defmethod generate-id :default [_] :default)
+
+(defprotocol Creatable
+  (create [this] "Act as constructor. Given a basis record (built with
+  constructor functions or static constructor) will set the primary key to a
+  newly generated id. If the entity has no specific instrution on how to
+  generate an id, will leave it nil for the database to apply it's DEFAULT. If
+  entitie's primary key is composite (tuple of ids) you need to either overload
+  the default implementation and set them by yourself. If the record already
+  have an id and you want to preserve it, then use `bf.crud.core/save!`
+  instead."))
 
 (defprotocol Storable
   (store [this] "Typically return the table name where this entity should be stored."))
@@ -33,7 +55,6 @@
 (defprotocol Pullable
   (pull! [this db ids pullq] [this db ids pullq opts]))
 
-
 ;;;;;;;;;;;;;;;;;
 ;; REFLEXIVITY ;;
 ;;;;;;;;;;;;;;;;;
@@ -49,17 +70,28 @@
   [this]
   (invoke-record-constructor this {}))
 
-
 ;;;;;;;;;;;;;;;;;;
 ;; DEFAULT IMPL ;;
 ;;;;;;;;;;;;;;;;;;
-
 
 (extend-protocol Identified
   Object
   (primary-key [this] :id)
   (identity [this] (get this (primary-key this))))
 
+(extend-protocol Creatable
+  Object
+  (create [this] (assoc this (primary-key this) (generate-id this))))
+
 (extend-protocol Storable
   Object
-  (store [this] (-> this class str (str/split #"\.") last camel/->snake_case_keyword)))
+  (store [this]
+    (let [class-name (-> (type this)
+                         (str)
+                         (str/split #"\s")
+                         (last)
+                         (str/split #"\.")
+                         (last))]
+      (-> (str/lower-case class-name)
+          (inflex/plural)
+          (keyword)))))
