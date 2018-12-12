@@ -146,6 +146,8 @@
   "Save a map or a coll of maps in the given table, only save keys matching
   existing columns."
   [db entity & {:keys [opts]}]
+  {:pre [(satisfies? crud/Storable entity)
+         (record? entity)]}
   (some->> (upsert! db (crud/store entity) entity :keys [opts])
            (recover-entities db entity)
            (first)
