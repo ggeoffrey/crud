@@ -46,7 +46,7 @@
   [db-or-t]
   (if (:datasource db-or-t)
     (select-keys db-or-t #{:datasource})
-    db-or-t))
+    (dissoc db-or-t :connection)))
 
 (defn get-columns
   "Return a list of column names from the given table.
