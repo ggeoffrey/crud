@@ -21,8 +21,8 @@
 
 (defmethod generate-id :default [_] :default)
 
-(defprotocol Creatable
-  (create [this] "Act as constructor. Given a basis record (built with
+(defprotocol Initializable
+  (init [this] "Act as constructor. Given a basis record (built with
   constructor functions or static constructor) will set the primary key to a
   newly generated id. If the entity has no specific instrution on how to
   generate an id, will leave it nil for the database to apply it's DEFAULT. If
@@ -79,9 +79,17 @@
   (primary-key [this] :id)
   (identity [this] (get this (primary-key this))))
 
-(extend-protocol Creatable
+(defn super-init
+  "Base behaviour of Initializable/init that will generate an primary key for an
+  entity, you can call this function like you would call super(…) in OOP if you
+  overload it."
+  [this]
+  (let [id (get this (identity this) (generate-id this))]
+    (assoc this (primary-key this) id)))
+
+(extend-protocol Initializable
   Object
-  (create [this] (assoc this (primary-key this) (generate-id this))))
+  (init [this] (super-init this)))
 
 (extend-protocol Storable
   Object
