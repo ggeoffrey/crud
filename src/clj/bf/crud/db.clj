@@ -96,12 +96,27 @@
               (into {}
                     (map (fn [[k v]] [(keyword k) v]) value))))))
 
+;;;;;;;;;;;;;;;;;
+;; REFLEXIVITY ;;
+;;;;;;;;;;;;;;;;;
+
+(defn invoke-record-constructor
+  "For a record instance, invoke the auto-generated map->Record factory function."
+  [this amap]
+  (clojure.lang.Reflector/invokeStaticMethod (.getName (class this)) "create" (object-array [amap])))
+
+(defn empty-record
+  "Same a c.c/empty, but work on records. An empty record is a record with all
+  fields initialized to `nil`"
+  [this]
+  (invoke-record-constructor this {}))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;; DEFAULT BEHAVIOURS ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn renew [entity map]
-  (into (crud/empty-record entity) map))
+  (into (empty-record entity) map))
 
 (defn recover-entities
   "Take a db-spec, entity, a resultset and will re-fetch all resultset items from

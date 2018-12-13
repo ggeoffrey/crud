@@ -55,21 +55,6 @@
 (defprotocol Pullable
   (pull! [this db ids pullq] [this db ids pullq opts]))
 
-;;;;;;;;;;;;;;;;;
-;; REFLEXIVITY ;;
-;;;;;;;;;;;;;;;;;
-
-(defn invoke-record-constructor
-  "For a record instance, invoke the auto-generated map->Record factory function."
-  [this amap]
-  (clojure.lang.Reflector/invokeStaticMethod (.getName (class this)) "create" (object-array [amap])))
-
-(defn empty-record
-  "Same a c.c/empty, but work on records. An empty record is a record with all
-  fields initialized to `nil`"
-  [this]
-  (invoke-record-constructor this {}))
-
 ;;;;;;;;;;;;;;;;;;
 ;; DEFAULT IMPL ;;
 ;;;;;;;;;;;;;;;;;;
@@ -80,7 +65,7 @@
   (identity [this] (get this (primary-key this))))
 
 (defn super-init
-  "Base behaviour of Initializable/init that will generate an primary key for an
+  "Base behaviour of Initializable/init that will generate a primary key for an
   entity, you can call this function like you would call super(…) in OOP if you
   overload it."
   [this]

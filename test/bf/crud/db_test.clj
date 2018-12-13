@@ -64,10 +64,10 @@
   (t/testing "About Records"
     (t/testing "an empty one should be equal to itself"
       (let [e (map->Test {})]
-        (t/is (= e (crud/empty-record e)))))
+        (t/is (= e (db/empty-record e)))))
     (t/testing "if we create one, empty it, then use `into` on it, they should be equal."
       (let [e (map->Test {:id 1})]
-        (t/is (= e (-> (crud/empty-record e)
+        (t/is (= e (-> (db/empty-record e)
                        (into {:id 1}))))))))
 
 (t/deftest basic-entity
