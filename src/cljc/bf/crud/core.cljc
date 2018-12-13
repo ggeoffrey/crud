@@ -11,15 +11,13 @@
   (primary-key [this] "Return the primary key")
   (identity [this] "Return the primary key's value"))
 
-(defprotocol NonPredictableId)
+(defmulti generate-id (fn [x] x))
 
-(defmulti generate-id type)
-
-(defmethod generate-id bf.crud.core.NonPredictableId [_]
+(defmethod generate-id ::non-predictable-id [_]
   #?(:clj (UUID/randomUUID)
      :cljs (random-uuid)))
 
-(defmethod generate-id :default [_] :default)
+(defmethod generate-id :default [_] nil)
 
 (defprotocol Initializable
   (init [this] "Act as constructor. Given a basis record (built with
@@ -60,7 +58,8 @@
 ;;;;;;;;;;;;;;;;;;
 
 (extend-protocol Identified
-  Object
+  #?(:clj Object
+     :cljs object)
   (primary-key [this] :id)
   (identity [this] (get this (primary-key this))))
 
@@ -68,16 +67,20 @@
   "Base behaviour of Initializable/init that will generate a primary key for an
   entity, you can call this function like you would call super(…) in OOP if you
   overload it."
-  [this]
-  (let [id (get this (identity this) (generate-id this))]
-    (assoc this (primary-key this) id)))
+  ([this]
+   (super-init this :default))
+  ([this id-type]
+   (let [id (get this (identity this) (generate-id id-type))]
+     (assoc this (primary-key this) id))))
 
 (extend-protocol Initializable
-  Object
+  #?(:clj Object
+     :cljs object)
   (init [this] (super-init this)))
 
 (extend-protocol Storable
-  Object
+  #?(:clj Object
+     :cljs object)
   (store [this]
     (let [class-name (-> (type this)
                          (str)
