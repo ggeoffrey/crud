@@ -4,7 +4,8 @@
             [camel-snake-kebab.core :as kebab]
             [clojure.java.jdbc :as jdbc]
             [clojure.string :as str]
-            [honeysql.core :as sql]))
+            [honeysql.core :as sql]
+            [clojure.data :as diff]))
 
 (defn row-fn [row]
   (into {} (comp
@@ -149,13 +150,12 @@
       (utils/generate-where (select-keys entity pk))
       (utils/generate-where (select-keys entity #{pk})))))
 
-(defn fetch! [db entity where-clause & {:keys [opts]}]
-  (map (partial renew entity)
-       (fetch* db
-               (crud/store entity)
-               (or where-clause
-                   {:where (generate-where-from-entity entity)})
-               :opts opts)))
+(defn fetch!
+  ([db entity]
+   (fetch! db entity {:where (generate-where-from-entity entity)}))
+  ([db entity where-clause & {:keys [opts]}]
+   (map (partial renew entity)
+        (fetch* db (crud/store entity) (or where-clause {:where (generate-where-from-entity entity)}) :opts opts))))
 
 (defn save!
   "Save a map or a coll of maps in the given table, only save keys matching
@@ -167,6 +167,37 @@
            (recover-entities db entity)
            (first)
            (renew entity)))
+
+(defn save-subentities!
+  "Upsert and/or delete the designated `subentities` in `db`, implementing the
+  save operation on a one-to-many relationship. Take a `db` spec, an `entity`, a
+  key designating a slot of related `subentities`, a `relation-key` keyword
+  naming the reference from the subentity to the entity, and a 2 arity `getterf`
+  function. Will use `getterf`, passing it `db` and `entity` to find the actual
+  subentities in `db`, diff them agains the given `subentities` and perform 2
+  actions in this order: save in `db` all given `subentities` setting their
+  `relation-key` to the entity's primary-key, then delete from `db` the ones
+  present in `db` but not in `subentities`.
+  Example: (save-subentities! db user :posts :user-id posts/find-by-user)"
+  [db entity subentities relation-key getterf]
+  {:pre [(keyword? subentities)
+         (keyword? relation-key)
+         (satisfies? crud/Identified entity)
+         (or (nil? (get entity subentities))
+             (vector? (get entity subentities)))
+         (ifn? getterf)]}
+  (when-let [xs (get entity subentities)]
+    (let [actual-xs             (getterf db entity)                 ;; we fetch subentities from db
+          actual-pks            (set (map crud/identity actual-xs)) ;; we get the actual subentities identities
+          pks-to-save           (set (map crud/identity xs))        ;; we get the subentities to save identities'
+          [pks-to-delete _ _]   (diff/diff actual-pks pks-to-save)  ;; diff them with the actual
+          subentities-to-delete (filter #(contains? pks-to-delete (crud/identity %)) actual-xs)]
+      ;; we save all subentities
+      (doseq [x xs]
+        (crud/save! (assoc x relation-key (crud/identity entity)) db))
+      ;; Then we delete the removed ones
+      (doseq [x subentities-to-delete]
+        (crud/delete! x db)))))
 
 (defn delete!
   ([db entity]
