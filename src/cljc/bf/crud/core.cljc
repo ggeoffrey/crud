@@ -91,3 +91,21 @@
       (-> (str/lower-case class-name)
           (inflex/plural)
           (keyword)))))
+
+
+;;;;;;;;;
+;; DSL ;;
+;;;;;;;;;
+
+(defmacro defentity [entity-name {:keys [primary-key id-type store]}]
+  (let [base `(defrecord ~entity-name ~(mapv (comp symbol name) (or primary-key [:id])))]
+    (cond-> base
+      store                        (concat `(Storable (store [this#] ~store)))
+      (= :non-predictable id-type) (concat `(Initializable (init [this#] (super-init this# ::non-predictable-id)))))))
+
+(defmacro attach-lifecycle [entity-name {:keys [on-fetch on-save on-delete]}]
+  (let [base `(extend-type ~entity-name)]
+    (cond-> base
+      on-fetch  (concat `(Fetchable (fetch! ~@(rest on-fetch))))
+      on-save   (concat `(Savable (save! ~@(rest on-fetch))))
+      on-delete (concat `(Deletable (delete! ~@(rest on-fetch)))))))
