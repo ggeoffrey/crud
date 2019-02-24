@@ -152,3 +152,18 @@
           folder (partial join-entity slot (is-one-to-one-join? by-id) by-id)]
       (map folder entities))))
 
+(defmacro ?->>
+  "Like `clojure.core/some->>` but short-circuit when the value do not satisfy the
+  predicate `pred?`. (?->> nil? ...) is equivalent to `clojure.core/some->>`."
+  [pred? expr & forms]
+  (let [g     (gensym)
+        steps (map (fn [step] `(if-not (~pred? ~g) ~g (->> ~g ~step)))
+                   forms)]
+    `(let [~g ~expr
+           ~@(interleave (repeat g) (butlast steps))]
+       ~(if (empty? steps)
+          g
+          (last steps)))))
+
+(defmacro seq->> [& body]
+  `(?->> seq ~@body))
