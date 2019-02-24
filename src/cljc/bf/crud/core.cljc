@@ -112,3 +112,43 @@
 
 (defn fetch-by-id [this db]
   (fetch! this db {:where [:= (primary-key this) (identity this)]}))
+
+;;;;;;;;;;;;;;;;;
+;; BATCH LAYER ;;
+;;;;;;;;;;;;;;;;;
+
+(defn- is-one-to-one-join? [id-entity-group]
+  {:pre [(map? id-entity-group)
+         (every? vector? id-entity-group)]}
+  (let [values (vals (dissoc id-entity-group nil))]
+    (->> (map count values)
+         (reduce + 0)
+         (= (count values)))))
+
+(defn- join-entity
+  "Assoc in `entity` at key `slot` the subentity found in `id-entity-group` or nil."
+  [slot is-one-to-one? id-entity-group entity]
+  (assoc entity slot (cond-> (get id-entity-group (identity entity))
+                       is-one-to-one? (first))))
+
+(defn join
+  "Take a list of `entities` that can be Identified, and a list of arbitrary
+  `subentities` maps. Will zip the two collections and join each subentities
+  with their respective parents by `join-key` and store the result at the `slot`
+  key in each entity. If at least one entity match with multiple
+  subentities (one-to-many), then the `slot` will be a list of subentities, a
+  single value otherwise.
+  E.g: (fold [(User {:id 1}) (User {:id 2})]
+             [(Profile {:user-id 1}) (Profile {:user-id 2})]
+             :profile
+             :user-id)"
+  [entities subentities slot join-key]
+  {:pre [(every? #(satisfies? Identified %) entities)
+         (keyword? slot)
+         (keyword? join-key)]}
+  (if-not (seq entities)
+    entities
+    (let [by-id  (dissoc (group-by join-key subentities) nil)
+          folder (partial join-entity slot (is-one-to-one-join? by-id) by-id)]
+      (map folder entities))))
+
