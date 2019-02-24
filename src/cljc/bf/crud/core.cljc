@@ -109,3 +109,6 @@
       on-fetch  (concat `(Fetchable (fetch! ~@(rest on-fetch))))
       on-save   (concat `(Savable (save! ~@(rest on-save))))
       on-delete (concat `(Deletable (delete! ~@(rest on-delete)))))))
+
+(defn fetch-by-id [this db]
+  (fetch! this db {:where [:= (primary-key this) (identity this)]}))
