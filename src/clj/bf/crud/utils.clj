@@ -2,7 +2,8 @@
   (:require [bf.crud.postgres :as pg]
             [camel-snake-kebab.core :as camel]
             [clojure.java.jdbc :as jdbc]
-            [clojure.set :as set]))
+            [clojure.set :as set])
+  (:import (org.postgresql.jdbc PgDatabaseMetaData)))
 
 (defn sql-values [row]
   (into {} (map (fn [[k v]]
@@ -62,6 +63,11 @@
        (jdbc/with-db-metadata [md (pure-db db)]
          (jdbc/metadata-result (.getPrimaryKeys md nil nil (name table))))))
 
+(defn get-best-alternate-key [db table]
+  (map :column_name
+         (jdbc/with-db-metadata [^PgDatabaseMetaData md (pure-db db)]
+           (jdbc/metadata-result (.getIndexInfo md nil nil (name table) true false)))))
+
 (defn stringify-keys
   "Transform keys of a map to string, drop namespaces. Since namespace is droped,
   later occurence of a key name will take precedence.
@@ -106,7 +112,9 @@
   present in the map."
   [db table map]
   (when (map? map)
-    (let [prims (get-primary-keys db table)
+    (let [prims (if-some [prims (seq (get-primary-keys db table))]
+                  prims
+                  (get-best-alternate-key db table))
           row   (first (maps->table-rows db table [map]))]
       (cond
         (not (seq prims))         (throw (ex-info "Unable to generate an update clause on a table missing a primary key"
