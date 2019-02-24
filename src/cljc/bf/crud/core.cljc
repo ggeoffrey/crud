@@ -107,5 +107,5 @@
   (let [base `(extend-type ~entity-name)]
     (cond-> base
       on-fetch  (concat `(Fetchable (fetch! ~@(rest on-fetch))))
-      on-save   (concat `(Savable (save! ~@(rest on-fetch))))
-      on-delete (concat `(Deletable (delete! ~@(rest on-fetch)))))))
+      on-save   (concat `(Savable (save! ~@(rest on-save))))
+      on-delete (concat `(Deletable (delete! ~@(rest on-delete)))))))
