@@ -70,7 +70,7 @@
   ([this]
    (super-init this :default))
   ([this id-type]
-   (let [id (get this (identity this) (generate-id id-type))]
+   (let [id (or (get this (primary-key this)) (generate-id id-type))]
      (assoc this (primary-key this) id))))
 
 (extend-protocol Initializable
