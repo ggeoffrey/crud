@@ -6,7 +6,7 @@
 
   :source-paths ["src/clj" "src/cljc"]
 
-  :plugins [[cider/cider-nrepl "0.18.0"]
+  :plugins [[cider/cider-nrepl "0.21.1"]
             [refactor-nrepl "2.4.0"]
             [jonase/eastwood "0.3.1"]
             [lein-kibit "0.1.6"]
