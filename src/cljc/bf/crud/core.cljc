@@ -142,15 +142,20 @@
              [(Profile {:user-id 1}) (Profile {:user-id 2})]
              :profile
              :user-id)"
-  [entities subentities slot join-key]
-  {:pre [(every? #(satisfies? Identified %) entities)
-         (keyword? slot)
-         (keyword? join-key)]}
-  (if-not (seq entities)
-    entities
-    (let [by-id  (dissoc (group-by join-key subentities) nil)
-          folder (partial join-entity slot (is-one-to-one-join? by-id) by-id)]
-      (map folder entities))))
+  ([entities subentities slot join-key]
+   (join entities subentities slot join-key nil))
+  ([entities subentities slot join-key one-to-one-join?]
+   {:pre [(every? #(satisfies? Identified %) entities)
+          (keyword? slot)
+          (keyword? join-key)]}
+   (if-not (seq entities)
+     entities
+     (let [by-id       (dissoc (group-by join-key subentities) nil)
+           one-to-one? (if (nil? one-to-one-join?)
+                         (is-one-to-one-join? by-id)
+                         one-to-one-join?)
+           folder      (partial join-entity slot one-to-one? by-id)]
+       (map folder entities)))))
 
 (defmacro ?->>
   "Like `clojure.core/some->>` but short-circuit when the value do not satisfy the
@@ -167,3 +172,11 @@
 
 (defmacro seq->> [& body]
   `(?->> seq ~@body))
+
+(comment
+  (?->> seq [] (map inc) (map inc))
+  (join [{:id 1} {:id 2}]
+        [{:user-id 1} {:user-id 2}]
+        :profile
+        :user-id)
+  )
