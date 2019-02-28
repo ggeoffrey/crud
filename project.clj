@@ -1,4 +1,4 @@
-(defproject bf.crud "0.1.0-SNAPSHOT"
+(defproject bf.crud "0.1.0"
   :description "Easy and extensible sql CRUD operations in Clojure"
   :url "https://github.com/ggeoffrey/crud"
   :license {:name "Eclipse Public License"
