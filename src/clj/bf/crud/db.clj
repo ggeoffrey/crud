@@ -14,23 +14,48 @@
             (map (fn [[k v]] [(kebab/->kebab-case-keyword k) v])))
         row))
 
+(defn get-in-cache
+  "Given a `cache` atom and a key `k`, get the key in the atom value. Return nil
+  if cache is nil, or throw an explicit exception if cache is not an atom."
+  [cache k]
+  (try
+    (and cache (get @cache k))
+    (catch Throwable t
+      (throw (ex-info "Provides SQL cache cannot be derefed" {:type (type cache)})))))
+
+(defn put-in-cache!
+  "Given a `cache` atom, a key `k`, and a value `v`, assoc key to value in the
+  cache. Return the cache value. Throw an expilict exception if cache is not an
+  atom."
+  [cache k v]
+  (when cache
+    (try
+      (swap! cache assoc k v)
+      (catch Throwable t
+        (throw (ex-info "The given SQL cache cannot be swap!ed" {:type (type cache)}))))))
+
 (defn- fetch*
   "Fetch from a table. `keys` are in honeysql syntax.
   Eg: :users {:where [:= :id 1]} => ({:id 1, …}, …). You can pass a
   full-blown honeysql {:select … :from … :where …} map in `keys`."
   [db table keys & {:keys [opts]}]
-  (let [opts (merge {:row-fn row-fn} opts)]
+  (let [cache (:cache db)
+        opts  (merge {:row-fn row-fn} opts)]
     (when (or (:where keys)
               (:union keys)
               (:intersect keys))
-      (as-> (cond
-              (or (:union keys)
-                  (:intersect keys)) {}
-              :else                  {:select (utils/pullq->select (or (:pull opts) '[*]))
-                                      :from   [(utils/table-name table)]}) <>
-        (merge <> keys)
-        (sql/format <>)
-        (jdbc/query db <> (dissoc opts :pull))))))
+      (let [query-string (as-> (cond
+                                 (or (:union keys)
+                                     (:intersect keys)) {}
+                                 :else                  {:select (utils/pullq->select (or (:pull opts) '[*]))
+                                                         :from   [(utils/table-name table)]}) <>
+                           (merge <> keys)
+                           (sql/format <>))]
+        (if-let [cached (get-in-cache cache query-string)]
+          cached
+          (let [result (jdbc/query db query-string (dissoc opts :pull))]
+            (do (put-in-cache! cache query-string result)
+                result)))))))
 
 (def standard-genkeys [:generated-key
                        (keyword "last-insert-rowid()")
@@ -124,7 +149,7 @@
   db. If no primary key are available, return the resultset."
   [db entity resultset]
   (if (some? (generated-pk (first resultset)))
-    (fetch* db (crud/store entity)
+    (fetch* (dissoc db :cache) (crud/store entity)
             {:where [:in (crud/primary-key entity) (map generated-pk resultset)]})
     resultset))
 
