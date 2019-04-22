@@ -1,4 +1,4 @@
-(defproject bf.crud "0.1.0"
+(defproject bf.crud "0.1.0-SNAPSHOT"
   :description "Easy and extensible sql CRUD operations in Clojure"
   :url "https://github.com/ggeoffrey/crud"
   :license {:name "Eclipse Public License"
@@ -14,7 +14,6 @@
 
   :dependencies [[org.clojure/clojure "1.9.0"]
                  [org.postgresql/postgresql "42.2.5"]
-                 [com.impossibl.pgjdbc-ng/pgjdbc-ng "0.7.1"]
                  [org.clojure/java.jdbc "0.7.8"]
                  [conman "0.8.3"]
                  [honeysql "0.9.4"]

@@ -13,9 +13,7 @@
             Timestamp
             PreparedStatement]
            (org.postgresql.geometric PGpoint)
-           (clojure.lang IPersistentVector)
-           (com.impossibl.postgres.jdbc PGDataSource)
-           (com.impossibl.postgres.api.jdbc PGNotificationListener)))
+           (clojure.lang IPersistentVector)))
 
 (defn to-date [^Date sql-date]
   (-> sql-date (.getTime) (java.util.Date.)))
