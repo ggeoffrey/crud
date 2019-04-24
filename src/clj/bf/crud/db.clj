@@ -262,3 +262,48 @@
   (crud/delete! [this db]
     (delete! db this)))
 
+;;;;;;;;;;;;;;;;;;
+;; Transactions ;;
+;;;;;;;;;;;;;;;;;;
+
+(defn- inc-level
+  "Increment the nesting level for a transacted database connection.
+   If we are at the top level, also add in a rollback state."
+  [db]
+  (let [nested-db (update-in db [:level] (fnil inc 0))]
+    (if (= 1 (:level nested-db))
+      (assoc nested-db :rollback (atom false))
+      nested-db)))
+
+(defn rollback-only-transaction!!
+  "Return a transaction on the open database connection. Any nested transactions
+  are absorbed into the outermost transaction. By default, all database updates
+  are committed together as a group after evaluating the outermost body, or
+  rolled back on any uncaught exception. If rollback is set within scope of the
+  outermost transaction, the entire transaction will be rolled back rather than
+  committed when complete. Isolation option are forced to :serializable. Note
+  that not all databases support all of those isolation levels, and may either
+  throw an exception or substitute another isolation level. This transaction
+  need to be rolledback and closed manually. Use it carefully."
+  [db]
+  (if (zero? (jdbc/get-level db))
+    (if-let [con (jdbc/db-find-connection db)]
+      (let [nested-db (inc-level db)]
+        (io!
+         (.setTransactionIsolation con java.sql.Connection/TRANSACTION_SERIALIZABLE)
+         (.setAutoCommit con false)
+         (jdbc/db-set-rollback-only! nested-db)
+         (assoc nested-db :manual true)))
+      ;; avoid confusion of read-only? TX and read-only? connection:
+      (let [con (jdbc/get-connection db)]
+        (rollback-only-transaction!! (jdbc/add-connection db con))))
+    (throw (ex-info "The passed db-spec is already a transaction. You cannot
+             not mix up manual transaction management and automatic transactions
+             scopes. For nested transactions please use
+             `with-db-transaction`."))))
+
+(defn close-rollback-only-transaction!! [db]
+  (when-let [conn (jdbc/db-find-connection db)]
+    (.rollback conn)
+    (.close conn)))
+
