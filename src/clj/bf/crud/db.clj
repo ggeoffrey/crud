@@ -188,7 +188,7 @@
   [db entity & {:keys [opts]}]
   {:pre [(satisfies? crud/Storable entity)
          (record? entity)]}
-  (some->> (upsert! db (crud/store entity) entity :keys [opts])
+  (some->> (upsert! (dissoc db :cache) (crud/store entity) entity :keys [opts])
            (recover-entities db entity)
            (first)
            (renew entity)))
@@ -211,18 +211,19 @@
          (or (nil? (get entity subentities))
              (vector? (get entity subentities)))
          (ifn? getterf)]}
-  (when-let [xs (get entity subentities)]
-    (let [actual-xs             (getterf db entity)                 ;; we fetch subentities from db
-          actual-pks            (set (map crud/identity actual-xs)) ;; we get the actual subentities identities
-          pks-to-save           (set (map crud/identity xs))        ;; we get the subentities to save identities'
-          [pks-to-delete _ _]   (diff/diff actual-pks pks-to-save)  ;; diff them with the actual
-          subentities-to-delete (filter #(contains? pks-to-delete (crud/identity %)) actual-xs)]
-      ;; we save all subentities
-      (doseq [x xs]
-        (crud/save! (assoc x relation-key (crud/identity entity)) db))
-      ;; Then we delete the removed ones
-      (doseq [x subentities-to-delete]
-        (crud/delete! x db)))))
+  (let [db (dissoc db :cache)] ;; we ensure there is no caching in this context
+    (when-let [xs (get entity subentities)]
+      (let [actual-xs             (getterf db entity)                 ;; we fetch subentities from db
+            actual-pks            (set (map crud/identity actual-xs)) ;; we get the actual subentities identities
+            pks-to-save           (set (map crud/identity xs))        ;; we get the subentities to save identities'
+            [pks-to-delete _ _]   (diff/diff actual-pks pks-to-save)  ;; diff them with the actual
+            subentities-to-delete (filter #(contains? pks-to-delete (crud/identity %)) actual-xs)]
+        ;; we save all subentities
+        (doseq [x xs]
+          (crud/save! (assoc x relation-key (crud/identity entity)) db))
+        ;; Then we delete the removed ones
+        (doseq [x subentities-to-delete]
+          (crud/delete! x db))))))
 
 (defn delete!
   ([db entity]
