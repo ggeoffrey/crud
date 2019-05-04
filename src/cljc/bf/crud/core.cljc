@@ -113,6 +113,11 @@
 (defn fetch-by-id [this db]
   (fetch! this db {:where [:= (primary-key this) (identity this)]}))
 
+#?(:clj
+   (defmacro defquery [name type args & body]
+     `(defn ~name [db# ~@args]
+        (fetch! (~(symbol (str type "/create")) {}) db# ~@body))))
+
 ;;;;;;;;;;;;;;;;;
 ;; BATCH LAYER ;;
 ;;;;;;;;;;;;;;;;;
