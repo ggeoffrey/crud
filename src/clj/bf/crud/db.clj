@@ -34,6 +34,16 @@
       (catch Throwable t
         (throw (ex-info "The given SQL cache cannot be swap!ed" {:type (type cache)}))))))
 
+(defn clear-cache!
+  "Given a `db` spec, try to empty the cache inside, if there is any."
+  [db]
+  (if (contains? db :cache)
+    (try
+      (update db :cache swap! empty)
+      (catch Throwable t
+        (throw (ex-info "The given SQL cache cannot be swap!ed" {:type (type (:cache db))}))))
+    db))
+
 (defn- fetch*
   "Fetch from a table. `keys` are in honeysql syntax.
   Eg: :users {:where [:= :id 1]} => ({:id 1, …}, …). You can pass a
@@ -76,9 +86,11 @@
 
 (defn- insert* [db table entity opts]
   (let [opts (merge {:row-fn row-fn} opts)]
+    (clear-cache! db)
     (jdbc/insert-multi! db table (map remove-nils (utils/maps->table-rows db table [entity])) opts)))
 
 (defn- update* [db table entity]
+  (clear-cache! db)
   (let [nb-affected (some->> (utils/generate-update db table entity)
                              (sql/format)
                              (jdbc/execute! db)
@@ -88,6 +100,7 @@
       [{:generated-key (crud/identity entity)}])))
 
 (defn upsert! [db table entity & {:keys [opts]}]
+  (clear-cache! db)
   (try
     (let [table (utils/table-name table)]
       (if-let [updated (update* db table entity)]
@@ -95,6 +108,7 @@
         (insert* db table entity opts)))))
 
 (defn update! [db entity query-clause & {:keys [opts]}]
+  (clear-cache! db)
   (as-> (merge {:update (keyword (crud/store entity))} query-clause) $
     (sql/format $)
     (doto $ prn)
@@ -107,12 +121,14 @@
   anything if you can, storage is cheap nowadays and it will make you system
   more reliable and change-friendly."
   [db table query & {:keys [opts]}]
+  (clear-cache! db)
   (as-> (merge {:delete-from (utils/table-name table)} query) $
     (sql/format $)
     (jdbc/execute! db $ opts)
     (first $)))
 
 (defn query-raw [db query-vec & {:keys [opts]}]
+  (clear-cache! db)
   (jdbc/query db query-vec (merge {:row-fn row-fn} opts)))
 
 (defn prepare-multi-rows [db table rows]
@@ -237,6 +253,7 @@
     (let [table (-> (first entities)
                     (crud/store)
                     (utils/table-name))]
+      (clear-cache! db)
       (->> (jdbc/insert-multi! db
                                table
                                (prepare-multi-rows db table entities)
