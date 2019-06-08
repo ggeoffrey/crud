@@ -44,6 +44,9 @@
         (throw (ex-info "The given SQL cache cannot be swap!ed" {:type (type (:cache db))}))))
     db))
 
+(defn disable-cache [db]
+  (dissoc db :cache))
+
 (defn- fetch*
   "Fetch from a table. `keys` are in honeysql syntax.
   Eg: :users {:where [:= :id 1]} => ({:id 1, …}, …). You can pass a
@@ -165,7 +168,7 @@
   db. If no primary key are available, return the resultset."
   [db entity resultset]
   (if (some? (generated-pk (first resultset)))
-    (fetch* (dissoc db :cache) (crud/store entity)
+    (fetch* (disable-cache db) (crud/store entity)
             {:where [:in (crud/primary-key entity) (map generated-pk resultset)]})
     resultset))
 
@@ -204,10 +207,13 @@
   [db entity & {:keys [opts]}]
   {:pre [(satisfies? crud/Storable entity)
          (record? entity)]}
-  (some->> (upsert! (dissoc db :cache) (crud/store entity) entity :keys [opts])
-           (recover-entities db entity)
-           (first)
-           (renew entity)))
+  (let [db     (disable-cache db)
+        result (some->> (upsert! db (crud/store entity) entity :keys [opts])
+                        (recover-entities db entity)
+                        (first)
+                        (renew entity))]
+    (clear-cache! db)
+    result))
 
 (defn save-subentities!
   "Upsert and/or delete the designated `subentities` in `db`, implementing the
@@ -227,7 +233,8 @@
          (or (nil? (get entity subentities))
              (vector? (get entity subentities)))
          (ifn? getterf)]}
-  (let [db (dissoc db :cache)] ;; we ensure there is no caching in this context
+  (let [db (disable-cache db)] ;; we ensure there is no caching in this context
+    (clear-cache! db)
     (when-let [xs (get entity subentities)]
       (let [actual-xs             (getterf db entity)                 ;; we fetch subentities from db
             actual-pks            (set (map crud/identity actual-xs)) ;; we get the actual subentities identities
