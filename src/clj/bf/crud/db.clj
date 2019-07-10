@@ -127,7 +127,7 @@
   (clear-cache! db)
   (as-> (merge {:delete-from (utils/table-name table)} query) $
     (sql/format $)
-    (jdbc/execute! db $ opts)
+    (jdbc/execute! db $ (or opts {}))
     (first $)))
 
 (defn query-raw [db query-vec & {:keys [opts]}]
